@@ -38,7 +38,7 @@ library(gridExtra)
 options(covidcast.auth = "3e5e14007dd9e")#this is the authorization code to be able to access the delphi covidcast aggregated data
 
 library(viridisLite)
-library(ggforce)
+#library(ggforce)
 library(igraph)
 
 
@@ -46,7 +46,6 @@ library(igraph)
 # 1) Always do min-max normalization when adjusting for a new time period
 # 2) Only define states and signals being used once
 # 3) Create the wide format of the dataset you'll use and use it for all analysis (implement this in the future)
-
 
 
 #### Official Data Cleaning ####
@@ -1433,8 +1432,8 @@ sigs.final <- c("smoothed_whesitancy_reason_cost","smoothed_whesitancy_reason_di
 
 trial.signals<- sigs.final
 a <- choose(length(trial.signals), 2) # helper variable to see how long the output.list is gonna be
-#states <- list("ca", "ny", "tx")#Specify the number of states
-states <- list("ca","ny","tx","fl")
+states <- list("ca", "tx")#Specify the number of states
+#states <- list("ca","ny","tx","fl")
 #states <- list("ny")
 num_signals <- length(trial.signals)
 num_states <- length(states)
@@ -1498,7 +1497,7 @@ smooth_row_wise <- function(x) {
 post.norm.full.ds <- cleaned.full.ds %>%
   #add this line if normalizing only by state
   filter(new_time_value >= as.Date("2021-05-20") & new_time_value <= as.Date("2022-06-25")) %>%
-  filter(geo_value %in% unique(cleaned.full.ds$geo_value))%>% # filter(geo_value %in% states)%>% #CURRENTLY DOES ALL STATES
+  filter(geo_value %in% states)%>% #filter(geo_value %in% unique(cleaned.full.ds$geo_value))%>% ##CURRENTLY DOES SELECTED STATES
   arrange(geo_value) %>%
   group_by(signal, geo_value) %>%
   mutate(norm.value = scale(value, center = min(value), scale = max(value) - min(value))) %>%
@@ -1807,15 +1806,15 @@ for (i in 1:num_states) {
 
 ## FILTERING BY THETA
 
-theta <- 0.76  # Threshold value
-#theta <- 0.8
+#theta <- 0.76  # Threshold value
+theta <- 0.82
 
 filtered_output_matrix <- lapply(output.matrix_list, function(m) {
   m[!(m < theta*-1 | m > theta)] <- 0
   m
 })
 
-sum(rowSums(filtered_output_matrix[[1]] != 0))-26 #CHANGED to 26 jan 28 because we are working with 26 signals and not 27 
+sum(rowSums(filtered_output_matrix[[2]] != 0))-26 #CHANGED to 26 jan 28 because we are working with 26 signals and not 27 
 
 
 # 31 #0.76
@@ -1859,7 +1858,7 @@ sum(rowSums(filtered_output_matrix[[1]] != 0))-26 #CHANGED to 26 jan 28 because 
 
 #output.matrix_list[[1]]
 
-matrix_data <- as.matrix(filtered_output_matrix[[1]]) # You change this index number for the state that you want
+matrix_data <- as.matrix(filtered_output_matrix[[2]]) # You change this index number for the state that you want
 
 # Round the matrix values to the thousandth decimal place
 rounded_matrix_data <- round(matrix_data, digits = 3)
@@ -1926,10 +1925,10 @@ format_edge_labels <- function(weights) {
 
 
 # Compute the layout with absolute values
-#layout <- layout_with_fr(graph, weights = E(graph)$weight,  niter =2000)# , niter = 1000 #layout_with_sugiyama, #layout_with_kk 
+#layout <- layout_with_fr(graph, weights = abs(E(graph)$weight),  niter =10)# , niter = 1000 #layout_with_sugiyama, #layout_with_kk 
 #set.seed(1)
-layout <- layout_with_lgl(graph, maxiter = 20)
-#layout <- layout_nicely(graph,  weights = E(graph)$weight)
+layout <- layout_with_lgl(graph)#, maxiter = 20)
+#layout <- layout_nicely(graph,  weights = abs(E(graph)$weight))
 #layout <- layout_with_sugiyama(graph, weights = E(graph)$weight)
 #layout <- layout_with_kk(graph, weights = E(graph)$weight)
 
@@ -2013,13 +2012,14 @@ library(forecast)
 state_signals <- list()
 #state_data <- full.states.long.ds %>%
 state_data <- full.states.long.ds %>%
-  +     filter(geo_value == "ca", signal == "smoothed_whh_cmnty_cli") %>%
-  +     select(norm.value) ## ONLY NORM VALUE
-
-> state_signals[[1]] <- state_data 
+   #filter(geo_value == "ca", signal == "smoothed_whh_cmnty_cli") %>% #original one from poster
+    filter(geo_value == "ca", signal == "smoothed_whesitancy_reason_low_priority") %>% #figuring out the dtw 
+    select(norm.value) ## ONLY NORM VALUE
+state_signals[[1]] <- state_data 
 state_data <- full.states.long.ds %>%
-  +     filter(geo_value == "ca", signal == "smoothed_wspent_time_indoors_1d") %>%
-  +     select(norm.value) ## ONLY NORM VALUE
+    #filter(geo_value == "ca", signal == "smoothed_wspent_time_indoors_1d") %>%  #original one from poster
+    filter(geo_value == "ca", signal == "smoothed_waccept_covid_vaccine_no_appointment") %>%
+    select(norm.value) ## ONLY NORM VALUE
 
 state_signals[[2]] <- state_data 
 var1 <- state_signals[[1]]
@@ -2042,9 +2042,17 @@ plot(v1v2.acf.values,ylab = "ACF Values", xlab="Negative Lag (Days)", main = pas
 
 #dtw
 
-plot(dtw(var1[[1]],var2[[1]], keep=TRUE, window.type="sakoechiba", window.size=21),type="twoway")
+plot(dtw(var1[[1]],var2[[1]], keep=TRUE, window.type="sakoechiba", window.size= 21),type="twoway")
 plot(dtw(var1[[1]],-1*var2[[1]]+1, keep=TRUE, window.type="sakoechiba", window.size=21),type="twoway")
 
+# note: 03/10: helpful in understanding what's happening with the constraints
+#plot(dtw(var1[[1]],var2[[1]], keep=TRUE, window.type="sakoechiba", window.size=402),type="twoway")
+#dtw(var1[[1]],var2[[1]], keep=TRUE, window.type="sakoechiba", window.size=0)$distance
+
+#03/09
+#Note: you can add a window size constraint, can't be negative 
+#plot(dtw(var1[[1]],var2[[1]], keep=TRUE, window.type="sakoechiba", window.size=c(21,0)),type="twoway")
+#plot(dtw(var1[[1]],var2[[1]], keep=TRUE, window.type="sakoechiba", window.size=c(0,21)),type="twoway")
 # Define darker colors (you can adjust the RGB values as needed)
 darker_yellow <- "#FFB519"
 darker_red <- "#862b2b"
@@ -2217,7 +2225,7 @@ pos.dtw.distance
 neg.dtw.distance
 
 
-#although the inverse is very similair to the the first signal, the pos dtw will always havea smaller
+#although the inverse is very similair to the the first signal, the pos dtw will always havea smaller #this is not correct log 03.09
 #distance than the inverse
 
 
@@ -2225,8 +2233,8 @@ neg.dtw.distance
 #Smaller distances indicate higher similarity, while larger distances indicate greater dissimilarity
 
 ## FILTERING BY THETA
-theta <- 0.022  # Threshold value
-#theta <- 0.12 
+#theta <- 0.022  # Threshold value
+theta <- 0.02 
 filtered_output_matrix <- lapply(output.matrix_list, function(m) {
   m[!(m < theta*-1 | m > theta)] <- 0
   m
