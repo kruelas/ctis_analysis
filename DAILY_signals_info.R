@@ -1989,8 +1989,6 @@ plot(graph,
 
 
 
-
-
 #install.packages("forecast")
 library(forecast)
 
@@ -2012,13 +2010,13 @@ library(forecast)
 state_signals <- list()
 #state_data <- full.states.long.ds %>%
 state_data <- full.states.long.ds %>%
-   #filter(geo_value == "ca", signal == "smoothed_whh_cmnty_cli") %>% #original one from poster
-    filter(geo_value == "ca", signal == "smoothed_whesitancy_reason_low_priority") %>% #figuring out the dtw 
+   filter(geo_value == "ca", signal == "smoothed_whh_cmnty_cli") %>% #original one from poster
+    #filter(geo_value == "ca", signal == "smoothed_whesitancy_reason_low_priority") %>% #figuring out the dtw 
     select(norm.value) ## ONLY NORM VALUE
 state_signals[[1]] <- state_data 
 state_data <- full.states.long.ds %>%
-    #filter(geo_value == "ca", signal == "smoothed_wspent_time_indoors_1d") %>%  #original one from poster
-    filter(geo_value == "ca", signal == "smoothed_waccept_covid_vaccine_no_appointment") %>%
+    filter(geo_value == "ca", signal == "smoothed_wspent_time_indoors_1d") %>%  #original one from poster
+    #filter(geo_value == "ca", signal == "smoothed_waccept_covid_vaccine_no_appointment") %>%
     select(norm.value) ## ONLY NORM VALUE
 
 state_signals[[2]] <- state_data 
@@ -2058,10 +2056,11 @@ darker_yellow <- "#FFB519"
 darker_red <- "#862b2b"
 
 # Perform the dtw alignment and store the result
-dtw_result <- dtw(var1[[1]], var2[[1]], keep = TRUE, window.type = "sakoechiba", window.size = 21)
-dtw_result_v2v1 <- dtw(var2[[1]], var1[[1]], keep = TRUE, window.type = "sakoechiba", window.size = 21)
-dtw_inverse <-dtw(var1[[1]],-1*var2[[1]]+1, keep=TRUE, window.type="sakoechiba", window.size=21)
+dtw_result <- dtw(var1[[1]], var2[[1]], keep = TRUE, window.type = "sakoechiba", window.size = c(0,21))
+dtw_result_v2v1 <- dtw(var2[[1]], var1[[1]], keep = TRUE, window.type = "sakoechiba", window.size = c(0,21))
 
+dtw_inverse <-dtw(var1[[1]],-1*var2[[1]]+1, keep=TRUE, window.type="sakoechiba", window.size=c(0,21))
+dtw_inverse_v2v1 <-dtw(var2[[1]],-1*var1[[1]]+1, keep=TRUE, window.type="sakoechiba", window.size=c(0,21))
 # Set the graphical parameters to combine both plots in the same panel
 par(mfrow = c(2, 1))  # Combine plots in 1 row and 2 columns
 
@@ -2095,6 +2094,7 @@ output.list <- vector("list", length = num_states)
 output.matrix_list <- vector("list", length = num_states)
 
 
+
 for (i in 1:num_states) {
   state <- states[i]
   state_signals <- list()
@@ -2116,8 +2116,6 @@ for (i in 1:num_states) {
                                                                                       paste0(states[i], "_", trial.signals)))
   #before it was dimnames = list(trial.signals, trial.signals) <- only had the signal names
   
-  
-  
   for (k in 1:(num_signals - 1)) {
     for (l in (k + 1):num_signals) {
       var1 <- state_signals[[k]]
@@ -2127,77 +2125,28 @@ for (i in 1:num_states) {
       # DTW DISTANCE
       
       #WE ARE ADDING ONE SO THAT IF THE SIGNAL IS THE SAME THE DISTANCE WILL BE ONE INSTEAD OF ZERO
+      dtw.distance <- 1/(dtw(var1, var2, window.type = "sakoechiba", window.size = c(21,21))$distance + 1) #dist.method = "Euclidean" by default
+      inverse.dtw.distance <- 1/(dtw(var1, (-1*var2)+1, window.type = "sakoechiba", window.size = c(21,21))$distance + 1) #changing window size from 21 days to 3 weeks
       
-      #PART A
-      dtw.distance <- 1/(dtw(var1, var2, window.type = "sakoechiba", window.size = 21)$distance + 1) #dist.method = "Euclidean" by default
-      inverse.dtw.distance <- 1/(dtw(var1, (-1*var2)+1, window.type = "sakoechiba", window.size = 21)$distance + 1) #changing window size from 21 days to 3 weeks
-      
-      v1v2.max.ab <- max(abs(dtw.distance))
-      v1v2.inv.max.ab <- max(abs(inverse.dtw.distance))
-      
-      #PART B 
-      v2.dtw.distance <- 1/(dtw(var2, var1, window.type = "sakoechiba", window.size = 21)$distance + 1) #dist.method = "Euclidean" by default
-      v2.inverse.dtw.distance <- 1/(dtw(var2, (-1*var1)+1, window.type = "sakoechiba", window.size = 21)$distance + 1)
-      
-      v2v1.max.ab <- max(abs(v2.dtw.distance))
-      v2v1.inv.max.ab <- max(abs(v2.inverse.dtw.distance))
+      v2.dtw.distance <- 1/(dtw(var2, var1, window.type = "sakoechiba", window.size = c(21,21))$distance + 1) #dist.method = "Euclidean" by default
+      v2.inverse.dtw.distance <- 1/(dtw(var2, (-1*var1)+1, window.type = "sakoechiba", window.size = c(21,21))$distance + 1)
       
       
-      #QUESTION DO WE EVEN NEED TO COMPARE THE MAX ABSOLUTE OF INVERSE AND OF DTW?
-      
-      # Assign values to the appropriate positions in the matrix based on signal order
-      ifelse(dtw.distance > inverse.dtw.distance,  output.matrix[k, l] <- dtw.distance, output.matrix[k, l] <- -1*inverse.dtw.distance )
-      ifelse(v2.dtw.distance > v2.inverse.dtw.distance, output.matrix[l, k] <- v2.dtw.distance,  output.matrix[l, k] <- -1*v2.inverse.dtw.distance)
-      
-      
-      
-      #HELPFUL
-      #dtw(x, y, window.type = "sakoechiba", window.size = 21)
-      # 
-      #           trying <-  dtw(var1[[1]],var2[[1]], keep=TRUE, window.type="sakoechiba", window.size=21)
-      #           trying$distance
-      # plot(dtw(var1[[1]],var2[[1]], keep=TRUE, window.type="sakoechiba", window.size=21),type="twoway")
-      # plot(dtw(var1[[1]],-1*var2[[1]]+1, keep=TRUE, window.type="sakoechiba", window.size=21),type="twoway")
-      
-      #           
-      #           plot(1/(dtw(var1, var2, window.type = "sakoechiba", window.size = 21) + 1),type="twoway")
-      #          
-      #           
-      #           
-      #           
-      #           #inverse HELPFUL
-      #           inv.trying <-  dtw(var1[[1]],-1*var2[[1]], keep=TRUE, window.type="sakoechiba", window.size=21)
-      #           inv.trying$distance
-      #           1/(inv.trying$distance +1)
-      #plot(dtw(var1[[1]],-1*var2[[1]], keep=TRUE, window.type="sakoechiba", window.size=21),type="twoway")
-      #           
-      #plot(1/(dtw(var1, var2, window.type = "sakoechiba", window.size = 21) + 1),type="twoway")
-      
-      # 
-      # p.max <- max(dtw.distance)
-      # n.max <- max(inverse.dtw.distance)
-      # #not needed because there is only 1 output 
-      # p.max <- max(dtw.distance)
-      # n.max <- max(inverse.dtw.distance)
-      # 
-      # if (p.max > n.max){
-      #   val.outcome <- p.max
-      # }
-      # else{
-      #   val.outcome <- -1 * n.max
-      # }
-      #   
-      # 
-      # state_output[[index]] <- val.outcome
-      # output.matrix[k, l] <- val.outcome
-      # output.matrix[l, k] <- val.outcome
-      
-      
+      #03/11 code is incorrect #ACTUALLY IT IS CORRECT
+      #upper triangle 
+        if(is.na(output.matrix[k,l])){
+        dist.val<- ifelse(dtw.distance > inverse.dtw.distance, dtw.distance, -1*inverse.dtw.distance)
+        output.matrix[k,l] <- dist.val
+        
+        #bottom part of triangle 
+        if(is.na(output.matrix[l,k])){
+         dist.val.2 <- ifelse(v2.dtw.distance > v2.inverse.dtw.distance, v2.dtw.distance, -1*v2.inverse.dtw.distance)
+         output.matrix[l,k] <-dist.val.2
+        }
+      }
       index <- index + 1
-      
-      # Plotting the lag correlation
-      # plot(lag.corr, main = paste("Cross-correlation:", trial.signals[k], trial.signals[l]))
     }
+    
   }
   #assigns 0 diagnally because signals are the same
   #diag(output.matrix) <- 0 # I CHANGE THE DIAGNOL TO BE ZERO: because they are the same signal so there's zero distance
@@ -2214,13 +2163,181 @@ for (i in 1:num_states) {
 # print
 output.matrix_list
 
+# 
+# for (i in 1:num_states) {
+#   state <- states[i]
+#   state_signals <- list()
+#   state_output <- list()  # Initialize sublist for output
+#   
+#   
+#   for (j in 1:num_signals) {
+#     one.sig <- trial.signals[j]
+#     state_data <- full.states.long.ds %>% #CHANGEEEEE!!
+#       filter(geo_value == state, signal == one.sig) %>%
+#       select(norm.value) ## ONLY NORM VALUE
+#     
+#     state_signals[[j]] <- state_data  # 4 signal values
+#   }
+#   
+#   
+#   index <- 1
+#   output.matrix <- matrix(NA, nrow = num_signals, ncol = num_signals, dimnames = list(paste0(states[i], "_", trial.signals),
+#                                                                                       paste0(states[i], "_", trial.signals)))
+#   #before it was dimnames = list(trial.signals, trial.signals) <- only had the signal names
+#   
+#   
+#   
+#   for (k in 1:(num_signals - 1)) {
+#     for (l in (k + 1):num_signals) {
+#       var1 <- state_signals[[k]]
+#       var2 <- state_signals[[l]]
+#       
+#       
+#       # DTW DISTANCE
+#       
+#       #WE ARE ADDING ONE SO THAT IF THE SIGNAL IS THE SAME THE DISTANCE WILL BE ONE INSTEAD OF ZERO
+#       
+#       #PART A
+#       dtw.distance <- 1/(dtw(var1, var2, window.type = "sakoechiba", window.size = c(0,21))$distance + 1) #dist.method = "Euclidean" by default
+#       inverse.dtw.distance <- 1/(dtw(var1, (-1*var2)+1, window.type = "sakoechiba", window.size = c(0,21))$distance + 1) #changing window size from 21 days to 3 weeks
+#       
+#       v1v2.max.ab <- max(abs(dtw.distance))#redundant because it only produces one number and it will be positive never negative
+#       v1v2.inv.max.ab <- max(abs(inverse.dtw.distance))
+#       
+#       #PART B 
+#       v2.dtw.distance <- 1/(dtw(var2, var1, window.type = "sakoechiba", window.size = c(0,21))$distance + 1) #dist.method = "Euclidean" by default
+#       v2.inverse.dtw.distance <- 1/(dtw(var2, (-1*var1)+1, window.type = "sakoechiba", window.size = c(0,21))$distance + 1)
+#       
+#       v2v1.max.ab <- max(abs(v2.dtw.distance))
+#       v2v1.inv.max.ab <- max(abs(v2.inverse.dtw.distance))
+#       
+#       #03/11: CORRECT CODE #UPDATE: INCORRECT
+#       # ifelse(v1v2.max.ab > v2v1.max.ab | v1v2.max.ab == v2v1.max.ab,output.matrix[k, l] <- v1v2.max.ab, output.matrix[k, l] <- v2v1.max.ab)
+#       # ifelse(v1v2.inv.max.ab > v2v1.inv.max.ab | v1v2.inv.max.ab == v2v1.inv.max.ab,output.matrix[l,k] <- -1*v1v2.inv.max.ab, output.matrix[l,k] <- -1*v2v1.inv.max.ab)
+#       # 
+#       
+#       #03/11 code is incorrect #ACTUALLY IT IS CORRECT
+#       # Assign values to the appropriate positions in the matrix based on signal order
+#       ifelse(dtw.distance > inverse.dtw.distance,  output.matrix[k, l] <- dtw.distance, output.matrix[k, l] <- -1*inverse.dtw.distance )
+#       #ifelse(v2.dtw.distance > v2.inverse.dtw.distance, output.matrix[l, k] <- v2.dtw.distance,  output.matrix[l, k] <- -1*v2.inverse.dtw.distance)
+# 
+# 
+#       
+#       #HELPFUL
+#       #dtw(x, y, window.type = "sakoechiba", window.size = 21)
+#       # 
+#       #           trying <-  dtw(var1[[1]],var2[[1]], keep=TRUE, window.type="sakoechiba", window.size=21)
+#       #           trying$distance
+#       # plot(dtw(var1[[1]],var2[[1]], keep=TRUE, window.type="sakoechiba", window.size=21),type="twoway")
+#       # plot(dtw(var1[[1]],-1*var2[[1]]+1, keep=TRUE, window.type="sakoechiba", window.size=21),type="twoway")
+#       
+#       #           
+#       #           plot(1/(dtw(var1, var2, window.type = "sakoechiba", window.size = 21) + 1),type="twoway")
+#       #          
+#       #           
+#       #           
+#       #           
+#       #           #inverse HELPFUL
+#       #           inv.trying <-  dtw(var1[[1]],-1*var2[[1]], keep=TRUE, window.type="sakoechiba", window.size=21)
+#       #           inv.trying$distance
+#       #           1/(inv.trying$distance +1)
+#       #plot(dtw(var1[[1]],-1*var2[[1]], keep=TRUE, window.type="sakoechiba", window.size=21),type="twoway")
+#       #           
+#       #plot(1/(dtw(var1, var2, window.type = "sakoechiba", window.size = 21) + 1),type="twoway")
+#       
+#       # 
+#       # p.max <- max(dtw.distance)
+#       # n.max <- max(inverse.dtw.distance)
+#       # #not needed because there is only 1 output 
+#       # p.max <- max(dtw.distance)
+#       # n.max <- max(inverse.dtw.distance)
+#       # 
+#       # if (p.max > n.max){
+#       #   val.outcome <- p.max
+#       # }
+#       # else{
+#       #   val.outcome <- -1 * n.max
+#       # }
+#       #   
+#       # 
+#       # state_output[[index]] <- val.outcome
+#       # output.matrix[k, l] <- val.outcome
+#       # output.matrix[l, k] <- val.outcome
+#       
+#       
+#       index <- index + 1
+#       
+#       # Plotting the lag correlation
+#       # plot(lag.corr, main = paste("Cross-correlation:", trial.signals[k], trial.signals[l]))
+#     }
+#   }
+#   #assigns 0 diagnally because signals are the same
+#   #diag(output.matrix) <- 0 # I CHANGE THE DIAGNOL TO BE ZERO: because they are the same signal so there's zero distance
+#   #jul 17: keeping this as one because earlier we made it so that if there is zero distance it becomes 1/(0+1) = 1
+#   diag(output.matrix) <- 1
+#   state.val.list[[i]] <- state_signals
+#   
+#   # output.list[[i]] <- as.matrix(state_output)[,1:index]  # Assign sublist to output.list & Convert to matrix
+#   output.list[[i]] <- state_output
+#   output.matrix_list[[i]] <- output.matrix
+#   
+# }
+# 
+# # print
+# output.matrix_list
 
-#plot of 2 sigs: cmnt_cli & spent time indoors for fl
-plot(dtw(state_signals[[21]],state_signals[[24]], keep=TRUE, window.type="sakoechiba", window.size=21),type="twoway")
-plot(dtw(state_signals[[21]],-1*state_signals[[24]]+1, keep=TRUE, window.type="sakoechiba", window.size=21),type="twoway")
 
-pos.dtw.distance <- 1/(dtw(state_signals[[21]], state_signals[[24]], window.type = "sakoechiba", window.size = 21)$distance + 1) #dist.method = "Euclidean" by default
-neg.dtw.distance <- 1/(dtw(state_signals[[21]], -1*state_signals[[24]], window.type = "sakoechiba", window.size = 21)$distance + 1)
+#plot of 2 sigs: cmnt_cli & spent time indoors for ca
+
+#   
+# }
+# 
+# # print
+# output.matrix_list
+
+
+#plot of 2 sigs: cmnt_cli & spent time indoors for ca
+alignment_figuring <- dtw(var1,var2, keep=TRUE, window.type="sakoechiba", window.size=c(21,21)) 
+plot(alignment_figuring, type= "twoway")
+#blue.pal <- colorRampPalette(c("lightblue","blue"))
+dtwPlot(alignment_figuring, type = "density", main = "Alignment Path: \n Window Constraint of 21 days", sub= "Figure 1", xlab= "Covid-Like Illness in Community", ylab="Spent Time Indoors with Others")
+lines(0:alignment_figuring$N, 0:alignment_figuring$N, col = "black", lty = 1)
+
+dtwPlotAlignment(alignment_figuring, main = "Alignment Path: \n Window Constraint of 21 days", sub= "Figure 1", xlab= "Covid-Like Illness in Community", ylab="Spent Time Indoors with Others")
+lines(0:alignment_figuring$N +21, col = "red", lty = 2) 
+lines(0:alignment_figuring$N -21, col = "red", lty = 2)
+
+dtwPlotDensity(alignment_figuring)
+dtwPlotThreeWay(alignment_figuring, xts = var1, yts = var2, type.align = "l", main = "Alignment Path: Local Cost", sub= "Figure 2", xlab= "Covid-Like Illness in Community", ylab="Spent Time Indoors with Others")
+#Best display of alignments
+al <- alignment_figuring$localCostMatrix
+image(x=seq_len(nrow(al)), y=seq_len(ncol(al)),al)
+text(row(al),col(al),label = al, cex= 0.02)
+lines(alignment_figuring$index1,alignment_figuring$index2)
+# alignment_figuring <- dtw(state_signals[[21]],state_signals[[24]], keep=TRUE, window.type="sakoechiba", window.size=c(21,21)) 
+# plot(alignment_figuring, type= "twoway")
+# 
+# dtwPlot(alignment_figuring, type = "density", main = "Alignment Path")
+# lines(0:alignment_figuring$N, 0:alignment_figuring$N, col = "black", lty = 1)
+# 
+# dtwPlotAlignment(alignment_figuring)
+# lines(0:alignment_figuring$N, 0:alignment_figuring$N, col = "red", lty = 1) #this line is added to see if the alignment path happens on both sides or just one 
+# dtwPlotDensity(alignment_figuring)
+# dtwPlotThreeWay(alignment_figuring, xts = state_signals[[21]], yts = state_signals[[24]], type.align = "l")
+# #Best display of alignments
+# al <- alignment_figuring$localCostMatrix
+# image(x=seq_len(nrow(al)), y=seq_len(ncol(al)),al)
+# text(row(al),col(al),label = al, cex= 0.02)
+# lines(alignment_figuring$index1,alignment_figuring$index2)
+
+
+plot(dtw(state_signals[[21]],state_signals[[24]], keep=TRUE, window.type="sakoechiba", window.size=c(0,21)),type="twoway")
+plot(dtw(state_signals[[21]],-1*state_signals[[24]]+1, keep=TRUE, window.type="sakoechiba", window.size=c(0,21)),type="twoway")
+
+
+
+pos.dtw.distance <- 1/(dtw(state_signals[[21]], state_signals[[24]], window.type = "sakoechiba", window.size = c(0,21))$distance + 1) #dist.method = "Euclidean" by default
+neg.dtw.distance <- 1/(dtw(state_signals[[21]], -1*state_signals[[24]], window.type = "sakoechiba", window.size = c(0,21))$distance + 1)
 pos.dtw.distance
 neg.dtw.distance
 
@@ -2233,13 +2350,15 @@ neg.dtw.distance
 #Smaller distances indicate higher similarity, while larger distances indicate greater dissimilarity
 
 ## FILTERING BY THETA
-#theta <- 0.022  # Threshold value
-theta <- 0.02 
+#theta <- 0.008 # Threshold value CA 33 edges #38 for TX
+#theta <- 0.022   
+theta <- 0.023# Threshold value TX 32 edges 0.023
 filtered_output_matrix <- lapply(output.matrix_list, function(m) {
   m[!(m < theta*-1 | m > theta)] <- 0
   m
 })
-(sum(rowSums(filtered_output_matrix[[1]] != 0))-26)/2
+
+(sum(rowSums(filtered_output_matrix[[2]] != 0))-26)/2
 
 
 #02/03
@@ -2251,7 +2370,7 @@ filtered_output_matrix <- lapply(output.matrix_list, function(m) {
 #write.csv(filtered_output_matrix, "og_twelve_sig_filtered_output.csv")  # Export to CSV file
 
 
-matrix_data <- as.matrix(filtered_output_matrix[[1]]) # You change this index number for the state that you want
+matrix_data <- as.matrix(filtered_output_matrix[[2]]) # You change this index number for the state that you want
 
 # Round the matrix values to the thousandth decimal place
 rounded_matrix_data <- round(matrix_data, digits = 3)
@@ -2259,7 +2378,7 @@ rounded_matrix_data <- round(matrix_data, digits = 3)
 #02/04:SAVES MATRIX TO FOLDER 
 round_mat <- round(output.matrix_list[[1]], digits = 3)
 state <- substring(colnames(rounded_matrix_data)[1], 1, 2)
-file_name <- paste0("/Users/kristianny/Desktop/USC_data_2024/matrices/dtw/", state, "_DAILY_26_dtw_matrix_output.csv")
+file_name <- paste0("/Users/kristianny/Desktop/USC_data_2024/matrices/dtw/", state, "_DAILY_26_correct_hopefully_dtw_matrix_output_ROUND.csv")
 write.csv(round_mat, file = file_name, row.names = TRUE)
 
 
@@ -2302,20 +2421,67 @@ format_edge_labels <- function(weights) {
 # Get the formatted edge labels
 edge_labels <- format_edge_labels(E(sign.graph)$weight)
 
-# Plot the undirected graph with edge labels
+#saving dtw as a graphml file
+# Set the vertex labels
+V(graph)$label <- vertex_labels
+gephi_name <- paste0("/Users/kristianny/Desktop/USC_data_2024/graphs/", state, "_FINAL_practicing_gephi.graphml")
+write_graph(graph, file = gephi_name, format = "graphml")#, vertex.attr = list(label = V(graph)$label))
+
+#download edges reference
+edge_ends <- ends(graph, E(graph))
+# Get the shortened labels for the source and target vertices
+source_labels <- V(graph)$label[edge_ends[, 1]]
+target_labels <- V(graph)$label[edge_ends[, 2]]
+
+# # Convert the result to a data frame
+edge_labels <- data.frame(
+  Source = as.character(edge_ends[, 1]),
+  Target = as.character(edge_ends[, 2]),
+  Label = list(format_edge_labels(edge_weights))
+)
+
+
+edge_name <-  paste0("/Users/kristianny/Desktop/USC_data_2024/matrices/dtw/", state, "_DAILY_26_dtw_edge_name.csv")
+write.table(edge_labels, file = edge_name, sep = ",", quote = FALSE, row.names = FALSE)
+
 plot(graph,
      edge.label = edge_labels,
      layout = layout,
      vertex.color = "white",
      edge.color = "gray",
-     font = 2,
+     label.font = 2,
+     #label.dist = 1, #did not work
      vertex.shape = "circle",
      vertex.size = 1.5,
-     edge.width = 1.2,
-     vertex.label.cex = 0.6,
+     vertex.label.cex = 0.5,
+     edge.width = 1,
+     edge.arrow.size = 0.2,
      edge.label.color = "black",
-     edge.label.cex = 0.6,
+     edge.label.cex = 0.5,
+     vertex.label.color = "darkblue",
      main = graph_title)
+
+#03/12: trying to get a better visualization
+# Plot the directed graph with edge labels
+plot(graph,
+     edge.label = edge_labels,
+     layout = layout,
+     #label_context(labels = V(graph)$label,multi_line = TRUE, sep = "_" ),
+     vertex.color = "white",
+     edge.color = "gray10",
+     label.font = 2,
+     #label.dist = 1, #did not work
+     vertex.shape = "circle",
+     vertex.size = 20,
+     vertex.label.cex = 0.5,
+     edge.width = 0.45,
+     edge.arrow.size = 0.1,
+     edge.label.color = "gray28",
+     edge.label.cex = 0.5,
+     vertex.label.color = "darkblue",
+     main = graph_title)
+
+
 
 #number of degree fro each node/vertice
 #deg<- degree(graph, mode= "all")
