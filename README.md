@@ -4,7 +4,7 @@ POSTER PRESENTATION: Ruelas_Official_Poster_DSCapstone.pdf
 Figures & Variable Definitions: Ruelas_Figures&Variabls.pdf
 
 
-**Background**
+# Background
 
 For my capstone project I am fortunate to be extending the work I did over the summer with Professor Ajitesh Srivastava at the University of Southern California where our project was focused on understanding the role of trust during COVID-19 using time series analysis (which is a statistical technique to analyze the same data collected over a period of time).
 
@@ -17,7 +17,7 @@ The first step towards bridging this gap involved selecting indicators that refl
 For the summer, we decided to focus on the state of California and ran 3 times series methods: lagged correlation, dynamic time warping, and dynamic time warping using shapes and found that While DTW+S was able to capture trust in intervention (e.g. wearing mask) and epi outcomes the best, DTW was the only one that captured the relationship between source of trust (ie genera beliefs regarding covid) and epi outcome. This led me to the Research Question I pursued as my capstone project.
 
 
-**Research Question**
+# Research Question
 For the state of Texas, in addition to California, what is the relationship between epidemiological outcomes, trust in intervention, perception of risk, and source of trust?
 
 
@@ -25,7 +25,7 @@ For the state of Texas, in addition to California, what is the relationship betw
 This capstone is based on survey results from the Covid-19 Trends Impact Survey conducted by the Delphi group at Cerneige Mellon University in collaboration with Facebook. This survey produced 511 sets of variablesthat can be filtered by dates and state. During the summer, I was able to select 24 variables that fit the target categories. The remaining 2 variables were epidemiological indicators, hospitalizations and deaths, from the Department of Health and Human Services and Johns Hopkins University. Each state contains a single data frame where all 26 variables were conjoined, filtered for 402 consecutive days, and with independent min-max normalization performed on the values. We are left with two dataset where each row represents a day and each column represents a signal for both California and Texas.
 
 
-**Methods**
+# Methods
 
 The time series method I chose for this capstone was Dynamic Time Warping (DTW). DTW is used to compute the shortest optimal distance align  between two datasets collected over time by locally stretching or compressing time. In this case, we added a window constraint of 21 days in the future and past to restrain the amount of stretching/compressing DTW is able to do because people's beliefs and behaviors change over periods of time. This alignment is determined by finding the shortest Euclidean distance between two time-series points. The alignment avoids choosing a path where the distance would be “costly”.
 
