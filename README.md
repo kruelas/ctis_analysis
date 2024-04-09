@@ -1,3 +1,7 @@
+CODE: Use capstone_ctis_code.R 
+
+DATA: Dataset is accessed through an API datasource, i.e no dataset needs to be downloaded locally 
+
 Background
 
 For my capstone project I am fortunate to be extending the work I did over the summer with Professor Ajitesh Srivastava at the University of Southern California where our project was focused on understanding the relationship between trust in intervention methods regarding COVID-19 such as mask use aand epidemiological outcomes such as hospitalizations using time series analysis (which is a statistical technique to analyze the same data collected over a period of time).
