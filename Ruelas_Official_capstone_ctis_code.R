@@ -12,8 +12,9 @@ install.packages('lubridate')
 install.packages('tidyverse')
 install.packages("devtools")
 install.packages("igraph")
+install.packages("viridis")
 
-
+library(viridis)
 library(conflicted)
 library(sjPlot)
 library(lubridate)
@@ -112,7 +113,8 @@ fb.covidcast.data[["deaths_incidence_num"]] <- deaths
 full.ds <- aggregate_signals(fb.covidcast.data, format = "long")
 dim(full.ds) #2704700 rows,  16 columns (working with 2.7 million answers in this df)
 
-# CREATING CATEGORY TYPE COLUMN
+
+#### CREATING CATEGORY TYPE COLUMN ####
 sig.names<- unique(full.ds$signal) #a vector
 
 ###BEHAVIOR INDICATORS###
@@ -555,6 +557,7 @@ unique(full.ds$category_type[full.ds$indicator == "epidemiological"])
 
 #View(full.ds)
 
+#### Removing any missing values ####
 #remove the rows whose value in the column value is missing- DONT FORGET TO RUN THIS!
 dim(full.ds) #2704700      18
 cleaned.full.ds <- full.ds[complete.cases(full.ds$value), ]  #this removes the row number too
@@ -587,18 +590,11 @@ by(norm.full.ds$norm.value, norm.full.ds$signal, summary)
 #time to be formatted in year/month/day 
 norm.full.ds$new_time_value <- ymd(norm.full.ds$time_value)
 
-
-
-#install.packages("viridis")
-library(viridis)
-
 #### TIME SERIES GRAPHS: Indicators and Categories (includes min-max normalization: norm.full.ds) ####
-##Visulizations
-#library(viridis)
-
+##Visualizations for the state of California
 sub.ds <- subset(norm.full.ds, geo_value == "ca", indicator == "behavior")
 
-#Linear Regression for each Indicator and Epidemiological outcomes
+##Linear Regression for each Indicator and Epidemiological outcomes for California
 #scales = "free_y" so each panel has its own scale scales = "fixed" so all the panels have the same.
 behavior.reg <- norm.full.ds %>%
   filter(geo_value == "ca") %>%
@@ -1268,13 +1264,11 @@ length(unique(norm.full.ds$signal[norm.full.ds$category_type =="desired_informat
 
 
 
-##### Filtering to find the signals for 4 states ####
 
-
-##### POST 2021-2022 #####
+##### DATA: POST 2021-2022 #####
 #used for capstone presentation  
 ca.sigs <- list()
-states <- list("ca","ny","tx","fl")
+states <- list("ca","tx")
 num_states <- length(states)
 indicator.names <- unique(norm.full.ds$indicator)
 signals.states.list <- vector("list", length = num_states)
@@ -1344,7 +1338,7 @@ sigs.final <- c("smoothed_whesitancy_reason_cost","smoothed_whesitancy_reason_di
                 , "confirmed_admissions_covid_1d_7dav" )
 
 #Removing this signal as of Jul 20:"smoothed_wtrust_covid_info_cdc", 26 official signals to work with 
-#reason: extremely similair trends with trust in gov --> is redundant to have
+#reason: extremely similair trends with trust in gov --> it's redundant to have
 
 
 trial.signals<- sigs.final #renaming the sig names because trial.signals is used in the implementation of the methods. 
@@ -1358,7 +1352,7 @@ date.max <- "2022-06-25"
 
 cleaned.full.ds$new_time_value <- ymd(cleaned.full.ds$time_value)
 
-## This is min-max normalization DAILY !!!
+## This is independent min-max normalization DAILY !!! (takes state, signal, and geo_value into account)
 post.norm.full.ds <- cleaned.full.ds %>%
         #add this line if normalizing only by state
         filter(new_time_value >= as.Date("2021-05-20") & new_time_value <= as.Date("2022-06-25")) %>%
@@ -1382,77 +1376,6 @@ summary(post.norm.full.ds$norm.value)
 by(post.norm.full.ds$norm.value, post.norm.full.ds$signal, summary)
 
 
-## Use this for saving INDIVIUDAL STATES WIDE as csv files
-# rows = days
-# columns = signals
-per.state.wide.ds <- post.norm.full.ds %>%
-  filter(geo_value == "tx")%>%
-  mutate(new_time_value = as.Date(time_value)) %>%
-  filter(new_time_value >= as.Date(date.min) & new_time_value <= as.Date(date.max)) %>% 
-  arrange(geo_value) %>%
-  filter(signal %in% sigs.final) %>% 
-  group_by(signal) %>%
-  arrange(new_time_value) %>%
-  select(new_time_value,signal, norm.value)%>%
-  pivot_wider(names_from = signal, values_from = norm.value, values_fn = list)
-
-#View(per.state.wide.ds)
-
-#View(per.state.wide.ds)
-dim(per.state.wide.ds) # 402  27
-
-# Checking to see if there are any NULLS
-ind.comp.wide.ds <- per.state.wide.ds[apply(per.state.wide.ds[, -1], 1, function(row) !any(sapply(row, is.null))), ]
-dim(ind.comp.wide.ds) #402  27
-
-
-# Checking to see if time is continous
-date.diff <- diff(per.state.wide.ds$new_time_value)
-all(date.diff == 1) #should be TRUE
-
-#SAVING AS CSV FILE
-# Convert list columns to character vectors bc they were a list and can't save as csv file
-ind.comp.wide.ds <- ind.comp.wide.ds %>%
-  mutate(across(where(is.list), ~ purrr::map_chr(., function(x) if (length(x) == 0) NA_character_ else as.character(x))))
-
-file.path <- "/Users/kristianny/Desktop/DTW_S/state_26_data/weekly_ny_26_signals_official.csv" #have to change the name for each file
-#write.csv(ind.comp.wide.ds, file = file.path, row.names = FALSE)
-
-
-
-
-
-
-#jul 30
-
-# Use this for saving INDIVIDUAL STATES WIDE as CSV files
-#geo_values <- unique(weekly.norm.full.ds$geo_value)
-geo_values <- unique(cleaned.full.ds$geo_value)
-
-for (geo_val in geo_values) {
-  per_state_wide_ds <- post.norm.full.ds %>% 
-    filter(geo_value == geo_val) %>%
-    mutate(new_time_value = as.Date(time_value)) %>%
-    filter(new_time_value >= as.Date(date.min) & new_time_value <= as.Date(date.max)) %>%
-    arrange(geo_value) %>%
-    filter(signal %in% sigs.final) %>%
-    group_by(signal) %>%
-    arrange(new_time_value) %>%
-    select(new_time_value, signal, norm.value) %>%
-    pivot_wider(names_from = signal, values_from = norm.value, values_fn = list) %>%
-    mutate(across(where(is.list), ~ purrr::map_chr(., function(x) if (length(x) == 0) NA_character_ else as.character(x))))
-  
-  
-  # Save the data for this geo_value as a CSV file
-  file_name <- paste0("/Users/kristianny/Desktop/USC_data_2024/26_daily_all_states/", geo_val, "_DAILY_26_signals_official_norm.csv")
-  write.csv(per_state_wide_ds, file = file_name, row.names = FALSE)
-}
-
-
-
-
-
-
 ## Use this for FULL STATES long format for plot visualization (not arranged by date)
 #has the signals from sigs.final
 full.states.long.ds <- post.norm.full.ds%>% #weekly.norm.full.ds %>% #post.norm.full.ds %>%
@@ -1468,7 +1391,8 @@ full.states.long.ds <- post.norm.full.ds%>% #weekly.norm.full.ds %>% #post.norm.
 by(full.states.long.ds$norm.value, full.states.long.ds$signal, summary)
 by(full.states.long.ds$new_time_value, full.states.long.ds$signal, summary) #o check the start and end dates for the signals
 
-length(ifelse(full.states.long.ds$new_time_value %in% weekly.dates, TRUE, FALSE))#THEY DO have the same dates : JAN 28
+#his upcomign line is not needed for the daily analysis
+#length(ifelse(full.states.long.ds$new_time_value %in% weekly.dates, TRUE, FALSE))#THEY DO have the same dates : JAN 28
 
 
 ##04/03/2024
@@ -1504,16 +1428,13 @@ epi_outcomes <- c("smoothed_whh_cmnty_cli",
                   "confirmed_admissions_covid_1d_7dav",
                   "deaths_incidence_num")
 
-
-
-
-
+#adding them to the full.states.long ds 
 full.states.long.ds$variable_type[full.states.long.ds$signal %in% trust_intervention] <-"trust in intervention"
 full.states.long.ds$variable_type[full.states.long.ds$signal %in% source_trust] <-"sources of trust"
 full.states.long.ds$variable_type[full.states.long.ds$signal %in% risk_perception] <-"perception of risk"
 full.states.long.ds$variable_type[full.states.long.ds$signal %in% epi_outcomes] <-"epidemiological outcomes"
 
-#CLEANING SIGNAL NAMES
+#CLEANING UP SIGNAL NAMES
 #04/03/2024
 full.states.long.ds$name_signal <-""
 full.states.long.ds$name_signal <- ifelse(grepl("smoothed", full.states.long.ds$signal),
@@ -1537,6 +1458,9 @@ unique(full.states.long.ds$variable_type)
 unique(full.states.long.ds$signal[full.states.long.ds$variable_type == "trust in intervention"]) # shows which signals are under this 
 unique(full.states.long.ds$category_type[full.states.long.ds$variable_type == "trust_intervention"]) #shows the category type
 
+
+#### POSTER VISUALIZATIONS ####
+#Figure 1: Variable by Category
 df.distinct <- full.states.long.ds %>% distinct(variable_names,variable_type)
 un.distinct <- as.data.frame(unique(df.distinct))
 
@@ -1549,10 +1473,9 @@ df.distinct.order <- df.distinct %>%
 df.distinct.order$name_signal <- factor(df.distinct.order$variable_names, levels = unique(df.distinct.order$variable_names))
 #IMPORTANT COLORS #04/03/2024
 #var_type_colors <- c("#0055A4","#FF9B56", "#58b1ff","#AAAAAA")
-#CHANGIGN THE VAR TYPE COLORS
-#A78FCF
+#CHANGING THE TYPE COLORS
 var_type_colors <- c("#A78FCF","#8DADD8", "#D5D5DC", "#F0D77B" )
-# Create the ggplot with scatter plot and adjust x-axis labels size
+# Plot to visualize the variable by category 
 o <- ggplot(df.distinct.order, aes(x = variable_type, y = name_signal, color = variable_type)) +
   geom_point(size = 4) +
   scale_color_manual(values = var_type_colors) +  # Use the defined color palette
@@ -1562,112 +1485,13 @@ o <- ggplot(df.distinct.order, aes(x = variable_type, y = name_signal, color = v
        color = "Legend") +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) #+
-  #theme(plot.title = element_text(hjust = 0.5))#, text=element_text(family="Times New Roman"))
+#theme(plot.title = element_text(hjust = 0.5))#, text=element_text(family="Times New Roman"))
 o
 o+theme(legend.position = "right", legend.box = "vertical") + guides(color = guide_legend(nrow=4))
 
 
-
-#CATEGORY AND INDICATOR VISUAL
-time.post <- post.norm.full.ds %>%
-  filter(geo_value %in% states)%>%
-  filter(signal %in% sigs.final) %>%
-  mutate(new_time_value = as.Date(time_value)) %>%
-  #DATE
-  filter(new_time_value >= as.Date(date.min) & new_time_value <= as.Date(date.max))
-
-sig.cat.tab <- time.post %>% distinct(signal,category_type, indicator)
-sig.indic.ds <- as.data.frame(unique(sig.cat.tab)) #shows signals and the corresponding category type 
-sig.indic.ds
-
-
-category_colors <- c("#1f78b4", "#33a02c", "#e31a1c", "#ff7f00", "#6a3d9a",
-                     "#fb9a99", "#fdbf6f", "#cab2d6", "#b2df8a", "#a6cee3",
-                     "#000080", "#984ea3")
-
-# Create the ggplot with scatter plot and adjust x-axis labels size
-ggplot(sig.cat.tab, aes(x = indicator, y = signal, color = category_type)) +
-  geom_point(size = 4) +
-  scale_color_manual(values = category_colors) +  # Use the defined color palette
-  theme_minimal() +
-  labs(title = "Signals by Unique Indicators and Categories",
-       x = "Indicator",
-       y = "Signal",
-       color = "Category Type") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8))
-
-
-
-#Helful info about categories overall:
-unique(time.post$indicator[unique(time.post$signal %in% sigs.final)])
-unique(time.post$category_type[unique(time.post$signal %in% sigs.final)])
-
-#### Graphs for 4 states ####
-## PRE:
-
-## POST:
-
-one.states.long.ds <- post.norm.full.ds %>%
-  filter(geo_value == "ca")%>%
-  mutate(new_time_value = as.Date(time_value)) %>%
-  #DATE
-  filter(new_time_value >= as.Date(date.min) & new_time_value <= as.Date(date.max)) %>% 
-  arrange(geo_value) %>%
-  filter(signal %in% sigs.final) %>%
-  select(new_time_value,geo_value,signal, norm.value)
-
-by(one.states.long.ds$norm.value, one.states.long.ds$signal, summary)
-
-#library(ggplot2)
-
-new.stuff <- full.states.long.ds %>%
-  filter(geo_value == "ca") %>%
-  filter(new_time_value >= as.Date("2021-05-20") & new_time_value <= as.Date("2022-06-25")) %>%
-  ggplot(aes(x = new_time_value, y = norm.value, color = as.factor(signal))) +
-  geom_line(linewidth = 1.2, alpha = 0.7) +
-  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, linewidth = 0.2) + #CI se=TRUE size=1.5 adjusts the size of the CI 
-  facet_wrap_paginate(~ signal, scales = "free_y", ncol = 4, nrow = 7) +
-  labs(x = "Time", y = "Value", color = "Signal") +
-  #scale_color_manual(values = viridis(nlevels(as.factor(signal)))) +
-  scale_color_viridis_d() + 
-  theme_minimal() +
-  theme(
-    legend.position = "top",
-    panel.grid.major = element_blank(), #removes grid lines
-    panel.grid.minor = element_blank(),
-    axis.line = element_line(linewidth = 0.8),
-    axis.text = element_text(size = 8),
-    axis.title = element_text(size = 12, face = "bold"),
-    legend.text = element_text(face = "bold")
-  ) +
-  scale_x_date(date_labels = "%b %Y") + labs(title ="California")
-
-new.stuff
-
-## METHODS AND ANALYSIS ##
-
-### for poster ###
-state_signals <- list()
-state_data <- full.states.long.ds %>%
-  filter(geo_value == "ca", signal == "smoothed_whh_cmnty_cli") %>% #original one from poster
-  #filter(geo_value == "ca", signal == "smoothed_whesitancy_reason_low_priority") %>% #figuring out the dtw 
-  select(norm.value) ## ONLY NORM VALUE
-state_signals[[1]] <- state_data 
-state_data <- full.states.long.ds %>%
-  filter(geo_value == "ca", signal == "smoothed_wspent_time_indoors_1d") %>%  #original one from poster
-  #filter(geo_value == "ca", signal == "smoothed_waccept_covid_vaccine_no_appointment") %>%
-  select(norm.value) ## ONLY NORM VALUE
-
-state_signals[[2]] <- state_data 
-var1 <- state_signals[[1]]
-var2 <- state_signals[[2]]
-
-# time series data
-plot(var1, type = "l", col = "#862b2b", xlab = "Days", ylab = "Min-Max Value", main = "Time Series of Covid-Like Illness in Community and Spent Time Indoors with Others")
-lines( var2, col = "#FFB519")
-legend("topleft", legend = c("cmnt_cli", "spent_time_indoors"), col = c("#862b2b", "#FFB519"), lty = 1,cex = 0.8)
-
 #04/01
+# Figure 2: Time Series: Covid-Like Illnes in Community & Socializing Indoors
 df.sigs <- full.states.long.ds %>%
   filter(geo_value == "ca", signal == "smoothed_whh_cmnty_cli" | signal == "smoothed_wspent_time_indoors_1d") %>%
   group_by(signal) %>%
@@ -1682,6 +1506,7 @@ df.sigs
 #"Covid-Like Ilnnes in Community"
 #"Spent Time Indoors with Others"
 #"Indoors with Non-Household Members"
+
 p<- ggplot(df.sigs, aes(x= new_time_value)) +
   geom_line(aes(y=smoothed_wspent_time_indoors_1d, color = "Socializing Indoors"), linewidth = 1.3)  +
   geom_line(aes(y=smoothed_whh_cmnty_cli, color = "Covid-Like Illness in Community"), linewidth = 1.3) +
@@ -1696,6 +1521,7 @@ p<- ggplot(df.sigs, aes(x= new_time_value)) +
 #
 p+theme(legend.position = "bottom", legend.box = "vertical") + guides(color = guide_legend(nrow=1))
 
+# Figure 4: Dynamic Time Warping(A,B)
 # Perform the dtw alignment and store the result
 dtw_result <- dtw(df.sigs$smoothed_whh_cmnty_cli, df.sigs$smoothed_wspent_time_indoors_1d, keep = TRUE, window.type = "sakoechiba", window.size = c(21,21))
 dtw_result_v2v1 <- dtw(df.sigs$smoothed_wspent_time_indoors_1d, df.sigs$smoothed_whh_cmnty_cli, keep = TRUE, window.type = "sakoechiba", window.size = c(21,21))
@@ -1704,87 +1530,127 @@ plot(dtw_result, type = "twoway", col = c("purple4", "steelblue"), lwd = 2, xlab
 legend("topleft", legend = c("A: Covid-Like Illness in Community (query)", "B: Socializing Indoors (reference)"), col = c("purple4", "steelblue"), lty = 1, cex = 1.5)
 #04/03 tried adding dates for dtw plot but it doesnt work 
 #dtw_result_v2v1$dates <- as.Date(df.sigs$new_time_value, "%Y/%m/%d")
+
+#Figure 5: Dynamic Time Warping(B,A)
 plot(dtw_result_v2v1, type = "twoway", col = c("steelblue", "purple4"), lwd = 2, xlab="Time (Days)", main = "DTW: Variable B & Variable A", ylab= "Value of the Respondents")
 legend("topleft", legend = c("B: Socializing Indoors (query)","A: Covid-Like Illness in Community (reference)"), col = c("steelblue", "purple4"), lty = 1, cex = 1.5)
 #axis(1,dtw_result_v2v1$dates, format(dtw_result_v2v1$dates, "%m -%d - %Y"), cex.axis= 0.7)
 min(df.sigs$new_time_value)
 
+#Figure 3: DTW Alignment Path & heat map
+dtwPlotThreeWay(dtw_result, xts = df.sigs$smoothed_whh_cmnty_cli, yts = df.sigs$smoothed_wspent_time_indoors_1d,
+                type.align = "l", margin =4, inner.margin = 0.2, title.margin = 0, 
+                main = "DTW: Alignment Path",ylab= "Socializing Indoors (days)", 
+                xlab= "Covid-Like Illness in Community (days)")
 
-#alignment and heat map
-dtwPlotThreeWay(dtw_result, xts = df.sigs$smoothed_wspent_time_indoors_1d, yts = df.sigs$smoothed_whh_cmnty_cli, type.align = "l", main = "Alignment Path: Local Cost", sub= "Figure 2", xlab= "Covid-Like Illness in Community", ylab="Spent Time Indoors with Others")
+#margin = 4, inner.margin = 0.2, title.margin = 1.5
 #Best display of alignments
-al <- alignment_figuring$localCostMatrix
-image(x=seq_len(nrow(al)), y=seq_len(ncol(al)),al)
+#install.packages("fields")
+library("fields")
+al <- dtw_result$localCostMatrix
+plot.heat<- image(x=seq_len(nrow(al)), y=seq_len(ncol(al)), al)
+plot.heat
+#palette_used <- attr(plot.heat, "palette")
+
+#image(x=seq_len(nrow(al)), y=seq_len(ncol(al)),al, col=palette_used)
+#legend("topright", legend = seq_len(ncol(al)), fill = heat.colors(ncol(al)), title = "Distance")
+custom_palette <- colorRampPalette(c("yellow", "orange", "red", "darkred"))(ncol(al))
+image.plot(x=seq_len(nrow(al)), y=seq_len(ncol(al)),al,col = custom_palette, legend.lab ="distance", legend.cex = 1.5)
+#legend("right", legend = "Legend", fill = custom_palette, title = "Distance Scale", horiz = TRUE)
+
+#vertical.image.legend(al)
 text(row(al),col(al),label = al, cex= 0.02)
-lines(alignment_figuring$index1,alignment_figuring$index2)
-#lagged corr
-lag.days <- 21
+lines(dtw_result$index1,dtw_result$index2, lwd=2.5)
 
-#var1, var2 K,L
-v1v2.lag.corr <- ccf(var1, var2, plot = FALSE, lag.max = lag.days)
-v1v2.neg.lag.corr <- v1v2.lag.corr[-1*lag.days:0] #-21:0 lags
-v1v2.acf.values <- v1v2.neg.lag.corr$acf
+## extra help when learning how to visualize
+# dtwPlotThreeWay(dtw_result, xts = df.sigs$smoothed_wspent_time_indoors_1d, yts = df.sigs$smoothed_whh_cmnty_cli, type.align = "l", main = "Alignment Path: Local Cost", sub= "Figure 2", xlab= "Covid-Like Illness in Community", ylab="Spent Time Indoors with Others")
+# #Best display of alignments
+# al <- alignment_figuring$localCostMatrix
+# image(x=seq_len(nrow(al)), y=seq_len(ncol(al)),al)
+# text(row(al),col(al),label = al, cex= 0.02)
+# lines(alignment_figuring$index1,alignment_figuring$index2)
 
-plot(v1v2.acf.values,ylab = "ACF Values", xlab="Negative Lag (Days)", main = paste("Lagged Correlation:CLI Community and Spent Time Indoors with Others"))
+#dtw- regular exploration
 
-#dtw
-
-plot(dtw(var1[[1]],var2[[1]], keep=TRUE, window.type="sakoechiba", window.size= 21),type="twoway")
-plot(dtw(var1[[1]],-1*var2[[1]]+1, keep=TRUE, window.type="sakoechiba", window.size=21),type="twoway")
+# plot(dtw(var1[[1]],var2[[1]], keep=TRUE, window.type="sakoechiba", window.size= 21),type="twoway")
+# plot(dtw(var1[[1]],-1*var2[[1]]+1, keep=TRUE, window.type="sakoechiba", window.size=21),type="twoway")
 
 # note: 03/10: helpful in understanding what's happening with the constraints
 #plot(dtw(var1[[1]],var2[[1]], keep=TRUE, window.type="sakoechiba", window.size=402),type="twoway")
 #dtw(var1[[1]],var2[[1]], keep=TRUE, window.type="sakoechiba", window.size=0)$distance
 
-#03/09
-#Note: you can add a window size constraint, can't be negative 
-#plot(dtw(var1[[1]],var2[[1]], keep=TRUE, window.type="sakoechiba", window.size=c(21,0)),type="twoway")
-#plot(dtw(var1[[1]],var2[[1]], keep=TRUE, window.type="sakoechiba", window.size=c(0,21)),type="twoway")
-# Define darker colors (you can adjust the RGB values as needed)
-darker_yellow <- "#FFB519"
-darker_red <- "#862b2b"
 
-# Perform the dtw alignment and store the result
-dtw_result <- dtw(var1[[1]], var2[[1]], keep = TRUE, window.type = "sakoechiba", window.size = c(21,21))
-dtw_result_v2v1 <- dtw(var2[[1]], var1[[1]], keep = TRUE, window.type = "sakoechiba", window.size = c(21,21))
+#plot of 2 sigs: cmnt_cli & spent time indoors for ca
+# alignment_figuring <- dtw(var1,var2, keep=TRUE, window.type="sakoechiba", window.size=c(21,21)) 
+# plot(alignment_figuring, type= "twoway")
+# #blue.pal <- colorRampPalette(c("lightblue","blue"))
+# dtwPlot(alignment_figuring, type = "density", main = "Alignment Path: \n Window Constraint of 21 days", sub= "Figure 1", xlab= "Covid-Like Illness in Community", ylab="Indoors with Non-Household Members")
+# lines(0:alignment_figuring$N, 0:alignment_figuring$N, col = "black", lty = 1)
+# 
+# dtwPlotAlignment(alignment_figuring, main = "Alignment Path: \n Window Constraint of 21 days", sub= "Figure 1", xlab= "Covid-Like Illness in Community", ylab="Indoors with Non-Household Members")
+# lines(0:alignment_figuring$N +21, col = "red", lty = 2) 
+# lines(0:alignment_figuring$N -21, col = "red", lty = 2)
+# 
+# dtwPlotDensity(alignment_figuring)
+#dtwPlotThreeWay(dtw_result, xts = df.sigs$smoothed_whh_cmnty_cli, yts = df.sigs$smoothed_wspent_time_indoors_1d, type.align = "l", main = "Alignment Path: Local Cost", sub= "Figure 2",  ylab= "Indoors with Non-Household Members" , xlab= "Covid-Like Illness in Community")
+#hi <- (1:length(dtw_result$index1))[(dtw_result$index1 %in% round(0:21))]
 
-dtw_inverse <-dtw(var1[[1]],-1*var2[[1]]+1, keep=TRUE, window.type="sakoechiba", window.size=c(21,21))
-dtw_inverse_v2v1 <-dtw(var2[[1]],-1*var1[[1]]+1, keep=TRUE, window.type="sakoechiba", window.size=c(21,21))
-# Set the graphical parameters to combine both plots in the same panel
-par(mfrow = c(2, 1))  # Combine plots in 1 row and 2 columns
+# 
+# dtwPlotThreeWay(dtw_result, xts = df.sigs$smoothed_whh_cmnty_cli, yts = df.sigs$smoothed_wspent_time_indoors_1d,
+#                 type.align = "p", type.ts = "l", margin =4, inner.margin = 0.2, title.margin = 0, 
+#                 main = "Alignment Path: Local Cost",ylab= "Indoors with Non-Household Members", 
+#                 xlab= "Covid-Like Illness in Community")
 
-# Plot the dtw_result with both colors and a bolder line width (lwd)
-plot(dtw_result, type = "twoway", col = c(darker_red, darker_yellow), lwd = 2, xlab="Days",  main = "Dynamic Time Warping")
-legend("topleft", legend = c("cmnt_cli(leading)", "spent_time_indoors(lagging)"), col = c(darker_red, darker_yellow), lty = 1, cex = 0.8)
+#04/04/24 
+#HELPFUL MATCH INDICES EXAMPLE FROM CRAN
+# idx<-seq(0,6.28,len=100);
+# query<-sin(idx)+runif(100)/10;
+# reference<-cos(idx)
+# dtw(query,reference,keep=TRUE)->alignment;
+# ## Beware of the reference's y axis, may be confusing
+# ## Equivalent to plot(alignment,type="three");
+# dtwPlotThreeWay(alignment);
+# ## Highlight matches of chosen QUERY indices. We will do some index
+# ## arithmetics to recover the corresponding indices along the warping
+# ## curve
+# hq <- (0:8)/8
+# hq <- round(hq*100) # indices in query for pi/4 .. 7/4 pi
+# hw <- (alignment$index1 %in% hq) # where are they on the w. curve?
+# hi <- (1:length(alignment$index1))[hw]; # get the indices of TRUE elems
+# dtwPlotThreeWay(alignment,match.indices=hi);
+# alignment_figuring <- dtw(state_signals[[21]],state_signals[[24]], keep=TRUE, window.type="sakoechiba", window.size=c(21,21)) 
+# plot(alignment_figuring, type= "twoway")
+# 
+# dtwPlot(alignment_figuring, type = "density", main = "Alignment Path")
+# lines(0:alignment_figuring$N, 0:alignment_figuring$N, col = "black", lty = 1)
+# 
+# dtwPlotAlignment(alignment_figuring)
+# lines(0:alignment_figuring$N, 0:alignment_figuring$N, col = "red", lty = 1) #this line is added to see if the alignment path happens on both sides or just one 
+# dtwPlotDensity(alignment_figuring)
+# dtwPlotThreeWay(alignment_figuring, xts = state_signals[[21]], yts = state_signals[[24]], type.align = "l")
+# #Best display of alignments
+# al <- alignment_figuring$localCostMatrix
+# image(x=seq_len(nrow(al)), y=seq_len(ncol(al)),al)
+# text(row(al),col(al),label = al, cex= 0.02)
+# lines(alignment_figuring$index1,alignment_figuring$index2)
 
-plot(dtw_result_v2v1, type = "twoway", col = c(darker_yellow, darker_red), lwd = 2, xlab="Days",  main = "Dynamic Time Warping")
+#more exploration that helped 
+plot(dtw(state_signals[[21]],state_signals[[24]], keep=TRUE, window.type="sakoechiba", window.size=c(0,21)),type="twoway")
+plot(dtw(state_signals[[21]],-1*state_signals[[24]]+1, keep=TRUE, window.type="sakoechiba", window.size=c(0,21)),type="twoway")
 
+pos.dtw.distance <- 1/(dtw(state_signals[[21]], state_signals[[24]], window.type = "sakoechiba", window.size = c(0,21))$distance + 1) #dist.method = "Euclidean" by default
+neg.dtw.distance <- 1/(dtw(state_signals[[21]], -1*state_signals[[24]], window.type = "sakoechiba", window.size = c(0,21))$distance + 1)
+pos.dtw.distance
+neg.dtw.distance
 
-plot(dtw_inverse, type = "twoway", col =c(darker_red, darker_yellow), lwd = 2, xlab="Days", main = "Dynamic Time Warping: Inverse Signal")
-legend("topleft", legend = c("cmnt_cli(leading)", "Inverse:spent_time_indoors(lagging)"), col = c(darker_red, darker_yellow), lty = 1)
-
-
-# Plot the dtw_result_v2v1 with both colors and a bolder line width (lwd)
-plot(dtw_result_v2v1, type = "twoway", col = c(darker_yellow, darker_red), lwd = 2)
-
-# Reset the graphical parameters
-par(mfrow = c(1, 1))
-
-# Add legend for var1 and var2 on the top-left
-legend("topleft", legend = c("cmnt_cli(lagging)", "spent_time_indoors(leading)"), col = c(darker_red, darker_yellow), lty = 1, cex = 0.8)
-
-#### DTW ####
+#### METHODS: DTW & Network Graphs ####
 #install.packages("dtw")
 library(dtw)
-
-#trial.signals <- c("smoothed_wothers_masked_public", "smoothed_wwearing_mask_7d" )
-
-#unique(norm.full.ds$signal[norm.full.ds$category_type == "mask_use"])
 
 state.val.list <- vector("list", length = num_states)
 output.list <- vector("list", length = num_states)
 output.matrix_list <- vector("list", length = num_states)
-
+#removes the smoothed part of the vocab for network graphs 
 trial.signals <- c("accept_covid_vaccine_no_appointment", "belief_created_small_group"      ,    "belief_distancing_effective"      ,  
                   "belief_govt_exploitation"            ,"delayed_care_cost"                ,   "dontneed_reason_dont_spend_time"   , 
                   "dontneed_reason_had_covid"           ,"dontneed_reason_precautions"      ,   "hesitancy_reason_cost"             , 
@@ -1798,7 +1664,6 @@ for (i in 1:num_states) {
   state <- states[[i]]
   state_signals <- list()
   state_output <- list()  # Initialize sublist for output
-  
   
   for (j in 1:num_signals) {
     one.sig <- trial.signals[j]
@@ -1859,98 +1724,6 @@ for (i in 1:num_states) {
 # print
 output.matrix_list
 
-# USED FOR POSTER
-#plot of 2 sigs: cmnt_cli & spent time indoors for ca
-alignment_figuring <- dtw(var1,var2, keep=TRUE, window.type="sakoechiba", window.size=c(21,21)) 
-plot(alignment_figuring, type= "twoway")
-#blue.pal <- colorRampPalette(c("lightblue","blue"))
-dtwPlot(alignment_figuring, type = "density", main = "Alignment Path: \n Window Constraint of 21 days", sub= "Figure 1", xlab= "Covid-Like Illness in Community", ylab="Indoors with Non-Household Members")
-lines(0:alignment_figuring$N, 0:alignment_figuring$N, col = "black", lty = 1)
-
-dtwPlotAlignment(alignment_figuring, main = "Alignment Path: \n Window Constraint of 21 days", sub= "Figure 1", xlab= "Covid-Like Illness in Community", ylab="Indoors with Non-Household Members")
-lines(0:alignment_figuring$N +21, col = "red", lty = 2) 
-lines(0:alignment_figuring$N -21, col = "red", lty = 2)
-
-dtwPlotDensity(alignment_figuring)
-dtwPlotThreeWay(dtw_result, xts = df.sigs$smoothed_whh_cmnty_cli, yts = df.sigs$smoothed_wspent_time_indoors_1d, type.align = "l", main = "Alignment Path: Local Cost", sub= "Figure 2",  ylab= "Indoors with Non-Household Members" , xlab= "Covid-Like Illness in Community")
-#hi <- (1:length(dtw_result$index1))[(dtw_result$index1 %in% round(0:21))]
-
-# 
-# dtwPlotThreeWay(dtw_result, xts = df.sigs$smoothed_whh_cmnty_cli, yts = df.sigs$smoothed_wspent_time_indoors_1d,
-#                 type.align = "p", type.ts = "l", margin =4, inner.margin = 0.2, title.margin = 0, 
-#                 main = "Alignment Path: Local Cost",ylab= "Indoors with Non-Household Members", 
-#                 xlab= "Covid-Like Illness in Community")
-
-dtwPlotThreeWay(dtw_result, xts = df.sigs$smoothed_whh_cmnty_cli, yts = df.sigs$smoothed_wspent_time_indoors_1d,
-                type.align = "l", margin =4, inner.margin = 0.2, title.margin = 0, 
-                main = "DTW: Alignment Path",ylab= "Socializing Indoors (days)", 
-                xlab= "Covid-Like Illness in Community (days)")
-
-#margin = 4, inner.margin = 0.2, title.margin = 1.5
-#Best display of alignments
-#install.packages("fields")
-library("fields")
-al <- dtw_result$localCostMatrix
-plot.heat<- image(x=seq_len(nrow(al)), y=seq_len(ncol(al)), al)
-plot.heat
-#palette_used <- attr(plot.heat, "palette")
-
-#image(x=seq_len(nrow(al)), y=seq_len(ncol(al)),al, col=palette_used)
-#legend("topright", legend = seq_len(ncol(al)), fill = heat.colors(ncol(al)), title = "Distance")
-custom_palette <- colorRampPalette(c("yellow", "orange", "red", "darkred"))(ncol(al))
-image.plot(x=seq_len(nrow(al)), y=seq_len(ncol(al)),al,col = custom_palette, legend.lab ="distance", legend.cex = 1.5)
-#legend("right", legend = "Legend", fill = custom_palette, title = "Distance Scale", horiz = TRUE)
-
-#vertical.image.legend(al)
-text(row(al),col(al),label = al, cex= 0.02)
-lines(dtw_result$index1,dtw_result$index2, lwd=2.5)
-
-
-#04/04/24 
-#HELPFUL MATCH INDICES EXAMPLE FROM CRAN
-                # idx<-seq(0,6.28,len=100);
-                # query<-sin(idx)+runif(100)/10;
-                # reference<-cos(idx)
-                # dtw(query,reference,keep=TRUE)->alignment;
-                # ## Beware of the reference's y axis, may be confusing
-                # ## Equivalent to plot(alignment,type="three");
-                # dtwPlotThreeWay(alignment);
-                # ## Highlight matches of chosen QUERY indices. We will do some index
-                # ## arithmetics to recover the corresponding indices along the warping
-                # ## curve
-                # hq <- (0:8)/8
-                # hq <- round(hq*100) # indices in query for pi/4 .. 7/4 pi
-                # hw <- (alignment$index1 %in% hq) # where are they on the w. curve?
-                # hi <- (1:length(alignment$index1))[hw]; # get the indices of TRUE elems
-                # dtwPlotThreeWay(alignment,match.indices=hi);
-# alignment_figuring <- dtw(state_signals[[21]],state_signals[[24]], keep=TRUE, window.type="sakoechiba", window.size=c(21,21)) 
-# plot(alignment_figuring, type= "twoway")
-# 
-# dtwPlot(alignment_figuring, type = "density", main = "Alignment Path")
-# lines(0:alignment_figuring$N, 0:alignment_figuring$N, col = "black", lty = 1)
-# 
-# dtwPlotAlignment(alignment_figuring)
-# lines(0:alignment_figuring$N, 0:alignment_figuring$N, col = "red", lty = 1) #this line is added to see if the alignment path happens on both sides or just one 
-# dtwPlotDensity(alignment_figuring)
-# dtwPlotThreeWay(alignment_figuring, xts = state_signals[[21]], yts = state_signals[[24]], type.align = "l")
-# #Best display of alignments
-# al <- alignment_figuring$localCostMatrix
-# image(x=seq_len(nrow(al)), y=seq_len(ncol(al)),al)
-# text(row(al),col(al),label = al, cex= 0.02)
-# lines(alignment_figuring$index1,alignment_figuring$index2)
-
-
-plot(dtw(state_signals[[21]],state_signals[[24]], keep=TRUE, window.type="sakoechiba", window.size=c(0,21)),type="twoway")
-plot(dtw(state_signals[[21]],-1*state_signals[[24]]+1, keep=TRUE, window.type="sakoechiba", window.size=c(0,21)),type="twoway")
-
-
-
-pos.dtw.distance <- 1/(dtw(state_signals[[21]], state_signals[[24]], window.type = "sakoechiba", window.size = c(0,21))$distance + 1) #dist.method = "Euclidean" by default
-neg.dtw.distance <- 1/(dtw(state_signals[[21]], -1*state_signals[[24]], window.type = "sakoechiba", window.size = c(0,21))$distance + 1)
-pos.dtw.distance
-neg.dtw.distance
-
-
 #greater outputs indicate higher similarity, while smaller output indicate greater dissimilarity bc diagonal is 1
 
 ## FILTERING BY THETA
@@ -1973,18 +1746,18 @@ filtered_output_matrix <- lapply(output.matrix_list, function(m) {
 
 #write.csv(filtered_output_matrix, "og_twelve_sig_filtered_output.csv")  # Export to CSV file
 
-
 matrix_data <- as.matrix(filtered_output_matrix[[2]]) # You change this index number for the state that you want
 
 # Round the matrix values to the thousandth decimal place
 rounded_matrix_data <- round(matrix_data, digits = 3)
 
-#02/04:SAVES MATRIX TO FOLDER 
+#02/04:SAVES RESULTS MATRIX TO FOLDER 
 round_mat <- round(output.matrix_list[[1]], digits = 3)
 state <- substring(colnames(rounded_matrix_data)[1], 1, 2)
 file_name <- paste0("/Users/kristianny/Desktop/USC_data_2024/matrices/dtw/", state, "_DAILY_26_correct_hopefully_dtw_matrix_output_ROUND.csv")
 #write.csv(round_mat, file = file_name, row.names = TRUE)
 
+# NETWORK GRAPHS CREATED USING IGRAPH 
 graph <- graph_from_adjacency_matrix(abs(rounded_matrix_data), mode = "undirected", weighted = TRUE) 
 sign.graph <- graph_from_adjacency_matrix(rounded_matrix_data, mode = "undirected", weighted = TRUE) 
 
@@ -2080,11 +1853,213 @@ plot(graph,
      main = graph_title)
 
 
+#### NOTE: The code below is extra stuff that is useful for visualization and exploration ####
+### FOR SAVING PURPOSES
+
+## Use this for saving INDIVIUDAL STATES WIDE as csv files
+# rows = days
+# columns = signals
+per.state.wide.ds <- post.norm.full.ds %>%
+  filter(geo_value == "tx")%>%
+  mutate(new_time_value = as.Date(time_value)) %>%
+  filter(new_time_value >= as.Date(date.min) & new_time_value <= as.Date(date.max)) %>% 
+  arrange(geo_value) %>%
+  filter(signal %in% sigs.final) %>% 
+  group_by(signal) %>%
+  arrange(new_time_value) %>%
+  select(new_time_value,signal, norm.value)%>%
+  pivot_wider(names_from = signal, values_from = norm.value, values_fn = list)
+
+#View(per.state.wide.ds)
+
+#View(per.state.wide.ds)
+dim(per.state.wide.ds) # 402  27
+
+# Checking to see if there are any NULLS
+ind.comp.wide.ds <- per.state.wide.ds[apply(per.state.wide.ds[, -1], 1, function(row) !any(sapply(row, is.null))), ]
+dim(ind.comp.wide.ds) #402  27
 
 
-#We want: evolving perception of risk, trust in intervention, and the community's influence 
-#We wish: model and verify joint probabilities
-#Accomplished: visualize all the signals in a scale where we can see the variations
-#Current Goal: Identify the relationship and visually find which signals are related and how 
-##potential exploration that hasnt been done: schooling indicators, vaccination indicators, and beliefs & exp
+# Checking to see if time is continous
+date.diff <- diff(per.state.wide.ds$new_time_value)
+all(date.diff == 1) #should be TRUE
+
+#SAVING AS CSV FILE
+# Convert list columns to character vectors bc they were a list and can't save as csv file
+ind.comp.wide.ds <- ind.comp.wide.ds %>%
+  mutate(across(where(is.list), ~ purrr::map_chr(., function(x) if (length(x) == 0) NA_character_ else as.character(x))))
+
+file.path <- "/Users/kristianny/Desktop/DTW_S/state_26_data/weekly_ca_26_signals_official.csv" #have to change the name for each file
+#write.csv(ind.comp.wide.ds, file = file.path, row.names = FALSE)
+
+
+#jul 30
+# Use this for saving INDIVIDUAL STATES WIDE as CSV files
+#geo_values <- unique(weekly.norm.full.ds$geo_value)
+geo_values <- unique(cleaned.full.ds$geo_value)
+
+for (geo_val in geo_values) {
+  per_state_wide_ds <- post.norm.full.ds %>% 
+    filter(geo_value == geo_val) %>%
+    mutate(new_time_value = as.Date(time_value)) %>%
+    filter(new_time_value >= as.Date(date.min) & new_time_value <= as.Date(date.max)) %>%
+    arrange(geo_value) %>%
+    filter(signal %in% sigs.final) %>%
+    group_by(signal) %>%
+    arrange(new_time_value) %>%
+    select(new_time_value, signal, norm.value) %>%
+    pivot_wider(names_from = signal, values_from = norm.value, values_fn = list) %>%
+    mutate(across(where(is.list), ~ purrr::map_chr(., function(x) if (length(x) == 0) NA_character_ else as.character(x))))
   
+  
+  # Save the data for this geo_value as a CSV file
+  file_name <- paste0("/Users/kristianny/Desktop/USC_data_2024/26_daily_all_states/", geo_val, "_DAILY_26_signals_official_norm.csv")
+  write.csv(per_state_wide_ds, file = file_name, row.names = FALSE)
+}
+
+
+#EXPLORATION PURPOSES
+
+#Just an exploration
+# not needed for the daily exploration just shows which signals by unique indicators and categories
+# #CATEGORY AND INDICATOR VISUAL
+# time.post <- post.norm.full.ds %>%
+#   filter(geo_value %in% states)%>%
+#   filter(signal %in% sigs.final) %>%
+#   mutate(new_time_value = as.Date(time_value)) %>%
+#   #DATE
+#   filter(new_time_value >= as.Date(date.min) & new_time_value <= as.Date(date.max))
+# 
+# sig.cat.tab <- time.post %>% distinct(signal,category_type, indicator)
+# sig.indic.ds <- as.data.frame(unique(sig.cat.tab)) #shows signals and the corresponding category type 
+# sig.indic.ds
+# 
+# 
+# category_colors <- c("#1f78b4", "#33a02c", "#e31a1c", "#ff7f00", "#6a3d9a",
+#                      "#fb9a99", "#fdbf6f", "#cab2d6", "#b2df8a", "#a6cee3",
+#                      "#000080", "#984ea3")
+# 
+# # Create the ggplot with scatter plot and adjust x-axis labels size
+# ggplot(sig.cat.tab, aes(x = indicator, y = signal, color = category_type)) +
+#   geom_point(size = 4) +
+#   scale_color_manual(values = category_colors) +  # Use the defined color palette
+#   theme_minimal() +
+#   labs(title = "Signals by Unique Indicators and Categories",
+#        x = "Indicator",
+#        y = "Signal",
+#        color = "Category Type") +
+#   theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8))
+
+#Helful info about categories overall:
+unique(time.post$indicator[unique(time.post$signal %in% sigs.final)])
+unique(time.post$category_type[unique(time.post$signal %in% sigs.final)])
+
+# FOR VISUALIZATION PURPOSES
+#### Graphs for states ####
+
+## POST:
+
+one.states.long.ds <- post.norm.full.ds %>%
+  filter(geo_value == "ca")%>%
+  mutate(new_time_value = as.Date(time_value)) %>%
+  #DATE
+  filter(new_time_value >= as.Date(date.min) & new_time_value <= as.Date(date.max)) %>% 
+  arrange(geo_value) %>%
+  filter(signal %in% sigs.final) %>%
+  select(new_time_value,geo_value,signal, norm.value)
+
+by(one.states.long.ds$norm.value, one.states.long.ds$signal, summary)
+
+#library(ggplot2)
+
+new.stuff <- full.states.long.ds %>%
+  filter(geo_value == "ca") %>%
+  filter(new_time_value >= as.Date("2021-05-20") & new_time_value <= as.Date("2022-06-25")) %>%
+  ggplot(aes(x = new_time_value, y = norm.value, color = as.factor(signal))) +
+  geom_line(linewidth = 1.2, alpha = 0.7) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, linewidth = 0.2) + #CI se=TRUE size=1.5 adjusts the size of the CI 
+  facet_wrap_paginate(~ signal, scales = "free_y", ncol = 4, nrow = 7) +
+  labs(x = "Time", y = "Value", color = "Signal") +
+  #scale_color_manual(values = viridis(nlevels(as.factor(signal)))) +
+  scale_color_viridis_d() + 
+  theme_minimal() +
+  theme(
+    legend.position = "top",
+    panel.grid.major = element_blank(), #removes grid lines
+    panel.grid.minor = element_blank(),
+    axis.line = element_line(linewidth = 0.8),
+    axis.text = element_text(size = 8),
+    axis.title = element_text(size = 12, face = "bold"),
+    legend.text = element_text(face = "bold")
+  ) +
+  scale_x_date(date_labels = "%b %Y") + labs(title ="California")
+
+new.stuff
+
+#Summer visualization
+state_signals <- list()
+state_data <- full.states.long.ds %>%
+  filter(geo_value == "ca", signal == "smoothed_whh_cmnty_cli") %>% #original one from poster
+  #filter(geo_value == "ca", signal == "smoothed_whesitancy_reason_low_priority") %>% #figuring out the dtw 
+  select(norm.value) ## ONLY NORM VALUE
+state_signals[[1]] <- state_data 
+state_data <- full.states.long.ds %>%
+  filter(geo_value == "ca", signal == "smoothed_wspent_time_indoors_1d") %>%  #original one from poster
+  #filter(geo_value == "ca", signal == "smoothed_waccept_covid_vaccine_no_appointment") %>%
+  select(norm.value) ## ONLY NORM VALUE
+
+state_signals[[2]] <- state_data 
+var1 <- state_signals[[1]]
+var2 <- state_signals[[2]]
+
+# time series data
+plot(var1, type = "l", col = "#862b2b", xlab = "Days", ylab = "Min-Max Value", main = "Time Series of Covid-Like Illness in Community and Spent Time Indoors with Others")
+lines( var2, col = "#FFB519")
+legend("topleft", legend = c("cmnt_cli", "spent_time_indoors"), col = c("#862b2b", "#FFB519"), lty = 1,cex = 0.8)
+
+#lagged corr
+lag.days <- 21
+
+#var1, var2 K,L
+v1v2.lag.corr <- ccf(var1, var2, plot = FALSE, lag.max = lag.days)
+v1v2.neg.lag.corr <- v1v2.lag.corr[-1*lag.days:0] #-21:0 lags
+v1v2.acf.values <- v1v2.neg.lag.corr$acf
+
+plot(v1v2.acf.values,ylab = "ACF Values", xlab="Negative Lag (Days)", main = paste("Lagged Correlation:CLI Community and Spent Time Indoors with Others"))
+
+#03/09
+#Note: you can add a window size constraint, can't be negative 
+#plot(dtw(var1[[1]],var2[[1]], keep=TRUE, window.type="sakoechiba", window.size=c(21,0)),type="twoway")
+#plot(dtw(var1[[1]],var2[[1]], keep=TRUE, window.type="sakoechiba", window.size=c(0,21)),type="twoway")
+# Define darker colors (you can adjust the RGB values as needed)
+darker_yellow <- "#FFB519"
+darker_red <- "#862b2b"
+
+# Perform the dtw alignment and store the result
+dtw_result <- dtw(var1[[1]], var2[[1]], keep = TRUE, window.type = "sakoechiba", window.size = c(21,21))
+dtw_result_v2v1 <- dtw(var2[[1]], var1[[1]], keep = TRUE, window.type = "sakoechiba", window.size = c(21,21))
+
+dtw_inverse <-dtw(var1[[1]],-1*var2[[1]]+1, keep=TRUE, window.type="sakoechiba", window.size=c(21,21))
+dtw_inverse_v2v1 <-dtw(var2[[1]],-1*var1[[1]]+1, keep=TRUE, window.type="sakoechiba", window.size=c(21,21))
+# Set the graphical parameters to combine both plots in the same panel
+par(mfrow = c(2, 1))  # Combine plots in 1 row and 2 columns
+
+# Plot the dtw_result with both colors and a bolder line width (lwd)
+plot(dtw_result, type = "twoway", col = c(darker_red, darker_yellow), lwd = 2, xlab="Days",  main = "Dynamic Time Warping")
+legend("topleft", legend = c("cmnt_cli(leading)", "spent_time_indoors(lagging)"), col = c(darker_red, darker_yellow), lty = 1, cex = 0.8)
+
+plot(dtw_result_v2v1, type = "twoway", col = c(darker_yellow, darker_red), lwd = 2, xlab="Days",  main = "Dynamic Time Warping")
+
+
+plot(dtw_inverse, type = "twoway", col =c(darker_red, darker_yellow), lwd = 2, xlab="Days", main = "Dynamic Time Warping: Inverse Signal")
+legend("topleft", legend = c("cmnt_cli(leading)", "Inverse:spent_time_indoors(lagging)"), col = c(darker_red, darker_yellow), lty = 1)
+
+
+# Plot the dtw_result_v2v1 with both colors and a bolder line width (lwd)
+plot(dtw_result_v2v1, type = "twoway", col = c(darker_yellow, darker_red), lwd = 2)
+
+# Reset the graphical parameters
+par(mfrow = c(1, 1))
+
+# Add legend for var1 and var2 on the top-left
+legend("topleft", legend = c("cmnt_cli(lagging)", "spent_time_indoors(leading)"), col = c(darker_red, darker_yellow), lty = 1, cex = 0.8)
