@@ -25,7 +25,7 @@ For the summer, we decided to focus on the state of California and ran 3 times s
 For the state of Texas, in addition to California, what is the relationship between epidemiological outcomes, trust in intervention, perception of risk, and source of trust?
 
 
-**About the Dataset**
+# About the Dataset
 This capstone is based on survey results from the Covid-19 Trends Impact Survey conducted by the Delphi group at Cerneige Mellon University in collaboration with Facebook. This survey produced 511 sets of variablesthat can be filtered by dates and state. During the summer, I was able to select 24 variables that fit the target categories. The remaining 2 variables were epidemiological indicators, hospitalizations and deaths, from the Department of Health and Human Services and Johns Hopkins University. Each state contains a single data frame where all 26 variables were conjoined, filtered for 402 consecutive days, and with independent min-max normalization performed on the values. We are left with two dataset where each row represents a day and each column represents a signal for both California and Texas.
 
 
